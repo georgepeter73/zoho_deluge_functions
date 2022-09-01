@@ -1,0 +1,76 @@
+lead = zoho.crm.getRecordById("Leads",leadId);
+servicesRequested = lead.get("Service_Requested");
+companyNames = List();
+locationAddress = List();
+relCompanyList = List();
+query_map = Map();
+mp = Map();
+leadStreet = lead.get("Street");
+leadState = lead.get("State");
+leadCity = lead.get("City");
+leadZipCode = lead.get("Zip_Code");
+leadFullAddress = leadCity + "," + leadState + "," + leadZipCode + "," + "USA";
+allCompanies = zoho.crm.getRecords("Vendors",1,10,query_map);
+for each  comp in allCompanies
+{
+	serviceProvided = comp.get("Service_Provided1");
+	vendorName = comp.get("Vendor_Name");
+	if(serviceProvided != null)
+	{
+		serviceProvidedName = serviceProvided.get("name");
+		//info serviceProvidedName;
+		if(servicesRequested.contains(serviceProvidedName))
+		{
+			allLocations = zoho.crm.getRecords("Accounts",1,10,query_map);
+			for each  loc in allLocations
+			{
+				locCompany = loc.get("Company");
+				//info loc;
+				if(locCompany != null)
+				{
+					locCompanyName = locCompany.get("name");
+					if(locCompanyName != null && locCompanyName.contains(vendorName))
+					{
+						relatedCompany = {"Name":"","Address":"","Distance":"","Link":""};
+						propertyStreet = loc.get("Property_Street");
+						propertyState = loc.get("Property_State");
+						propertyZip = loc.get("Property_Zip");
+						propertyCity = loc.get("Property_City");
+						locFullAddress = propertyCity + "," + propertyState + "," + propertyZip + "," + "USA";
+						distance = zoho.map.distanceBetween(leadFullAddress,locFullAddress,"MILE");
+						info distance;
+						info leadFullAddress;
+						info locFullAddress;
+						relatedCompany.put("Name",vendorName);
+						relatedCompany.put("Address",locFullAddress);
+						relatedCompany.put("Distance",distance.toNumber() + "Miles");
+						urlLink = "https://crmplus.zoho.com/get3bids/index.do/cxapp/crm/org727660768/tab/Vendors/" + locCompany.get("id");
+						relatedCompany.put("Link",urlLink);
+						relCompanyList.add(relatedCompany);
+						distanceText = "";
+						if(distance == -1)
+						{
+							distanceText = "Unknown";
+						}
+						if(distance != -1)
+						{
+							distanceText = distance.toNumber() + " Miles    ";
+						}
+						companyNames.add("Name :" + vendorName + ", Address " + locFullAddress + " Distance " + distanceText);
+					}
+				}
+			}
+		}
+	}
+}
+//info companyNames;
+mp.put("Related_Companies",companyNames.toListString());
+up = zoho.crm.updateRecord("Leads",leadId,mp);
+responseXML = "<record>";
+for each  relComp in relCompanyList
+{
+	responseXML = responseXML + "<row no='0'>" + "<FL val='Company Name' link='true' url='" + relComp.get("Link") + "'>" + relComp.get("Name") + "</FL><FL val='Location'>" + relComp.get("Address") + "</FL><FL val='Distance'>" + relComp.get("Distance") + "</FL></row>";
+}
+responseXML = responseXML + "</record>";
+info responseXML;
+return responseXML;

@@ -1,76 +1,81 @@
-lead = zoho.crm.getRecordById("Leads",leadId);
-servicesRequested = lead.get("Service_Requested");
-companyNames = List();
-locationAddress = List();
+serviceRequest = zoho.crm.getRecordById("Deals",serviceRequestId);
+servicesRequested = serviceRequest.get("Services_Requested");
+serviceRequestLocation = serviceRequest.get("Account_Name");
+serviceRequestLocationid = "";
+serviceRequestLocationAddress = "";
+serviceRequestLocationState = "";
+serviceRequestLocationStreet = "";
+serviceRequestLocationCity = "";
+serviceRequestLocationZip = "";
+companyServiceProvided = "";
 relCompanyList = List();
+serviceRequestLocationFullAddress = "";
 query_map = Map();
-mp = Map();
-leadStreet = lead.get("Street");
-leadState = lead.get("State");
-leadCity = lead.get("City");
-leadZipCode = lead.get("Zip_Code");
-leadFullAddress = leadCity + "," + leadState + "," + leadZipCode + "," + "USA";
+if(serviceRequestLocation != null)
+{
+	serviceRequestLocationid = serviceRequestLocation.get("id");
+}
+serviceRequestLocationObject = zoho.crm.getRecordById("Accounts",serviceRequestLocationid);
+if(serviceRequestLocationObject != null)
+{
+	serviceRequestLocationAddress = serviceRequestLocationObject.get("Address");
+	serviceRequestLocationState = serviceRequestLocationObject.get("Property_State");
+	serviceRequestLocationCity = serviceRequestLocationObject.get("Property_City");
+	serviceRequestLocationZip = serviceRequestLocationObject.get("Property_Zip");
+	serviceRequestLocationStreet = serviceRequestLocationObject.get("Property_Street");
+	serviceRequestLocationFullAddress = serviceRequestLocationStreet + "," + serviceRequestLocationState + "," + serviceRequestLocationZip + "," + "USA";
+}
 allCompanies = zoho.crm.getRecords("Vendors",1,10,query_map);
 for each  comp in allCompanies
 {
-	serviceProvided = comp.get("Service_Provided1");
-	vendorName = comp.get("Vendor_Name");
-	if(serviceProvided != null)
+	companyName = comp.get("Vendor_Name");
+	//info comp;
+	companyServiceProvided = comp.get("Services_Provided");
+	if(companyServiceProvided != null && servicesRequested != null && companyServiceProvided.toString().indexOf(servicesRequested.toString()))
 	{
-		serviceProvidedName = serviceProvided.get("name");
-		//info serviceProvidedName;
-		if(servicesRequested.contains(serviceProvidedName))
+		allLocations = zoho.crm.getRecords("Accounts",1,10,query_map);
+		for each  loc in allLocations
 		{
-			allLocations = zoho.crm.getRecords("Accounts",1,10,query_map);
-			for each  loc in allLocations
+			locCompany = loc.get("Company");
+			//info loc;
+			if(locCompany != null)
 			{
-				locCompany = loc.get("Company");
-				//info loc;
-				if(locCompany != null)
+				locCompanyName = locCompany.get("name");
+				if(locCompanyName != null && companyName != null && locCompanyName.toString().contains(companyName))
 				{
-					locCompanyName = locCompany.get("name");
-					if(locCompanyName != null && locCompanyName.contains(vendorName))
+					relatedCompany = {"Name":"","Address":"","Distance":"","Link":""};
+					companyLocationPropertyStreet = loc.get("Property_Street");
+					companyLocationpropertyState = loc.get("Property_State");
+					companyLocationpropertyZip = loc.get("Property_Zip");
+					companyLocationpropertyCity = loc.get("Property_City");
+					companyLocationFullAddress = companyLocationPropertyStreet + "," + companyLocationpropertyState + "," + companyLocationpropertyZip + "," + "USA";
+					distance = zoho.map.distanceBetween(serviceRequestLocationFullAddress,companyLocationFullAddress,"MILE");
+					distanceText = "";
+					if(distance == -1)
 					{
-						relatedCompany = {"Name":"","Address":"","Distance":"","Link":""};
-						propertyStreet = loc.get("Property_Street");
-						propertyState = loc.get("Property_State");
-						propertyZip = loc.get("Property_Zip");
-						propertyCity = loc.get("Property_City");
-						locFullAddress = propertyCity + "," + propertyState + "," + propertyZip + "," + "USA";
-						distance = zoho.map.distanceBetween(leadFullAddress,locFullAddress,"MILE");
-						info distance;
-						info leadFullAddress;
-						info locFullAddress;
-						relatedCompany.put("Name",vendorName);
-						relatedCompany.put("Address",locFullAddress);
-						relatedCompany.put("Distance",distance.toNumber() + "Miles");
-						urlLink = "https://crmplus.zoho.com/get3bids/index.do/cxapp/crm/org727660768/tab/Vendors/" + locCompany.get("id");
-						relatedCompany.put("Link",urlLink);
-						relCompanyList.add(relatedCompany);
-						distanceText = "";
-						if(distance == -1)
-						{
-							distanceText = "Unknown";
-						}
-						if(distance != -1)
-						{
-							distanceText = distance.toNumber() + " Miles    ";
-						}
-						companyNames.add("Name :" + vendorName + ", Address " + locFullAddress + " Distance " + distanceText);
+						distanceText = "Unknown";
 					}
+					if(distance != -1)
+					{
+						distanceText = distance.toNumber() + " Miles    ";
+					}
+					relatedCompany.put("Name",companyName);
+					relatedCompany.put("Address",companyLocationFullAddress);
+					relatedCompany.put("Distance",distanceText);
+					urlLink = "https://crmplus.zoho.com/get3bids/index.do/cxapp/crm/org727660768/tab/Vendors/" + locCompany.get("id");
+					relatedCompany.put("Link",urlLink);
+					relCompanyList.add(relatedCompany);
 				}
 			}
 		}
 	}
 }
-//info companyNames;
-mp.put("Related_Companies",companyNames.toListString());
-up = zoho.crm.updateRecord("Leads",leadId,mp);
 responseXML = "<record>";
 for each  relComp in relCompanyList
 {
-	responseXML = responseXML + "<row no='0'>" + "<FL val='Company Name' link='true' url='" + relComp.get("Link") + "'>" + relComp.get("Name") + "</FL><FL val='Location'>" + relComp.get("Address") + "</FL><FL val='Distance'>" + relComp.get("Distance") + "</FL></row>";
+	companyNm = relComp.get("Name").replaceAll("[&@#%]","");
+	responseXML = responseXML + "<row no='0'>" + "<FL val='Company Name' link='true' url='" + relComp.get("Link") + "'>" + companyNm + "</FL><FL val='Location'>" + relComp.get("Address") + "</FL><FL val='Distance'>" + relComp.get("Distance") + "</FL></row>";
 }
 responseXML = responseXML + "</record>";
-info responseXML;
+//info responseXML;
 return responseXML;
